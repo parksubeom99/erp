@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Generated artifacts (recipes are in DB/source, not committed binaries)
+*.db
+*.ifc
+*.dxf
+out*.ifc
+regen*.ifc
+series/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json

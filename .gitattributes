@@ -1,0 +1,12 @@
+# 텍스트는 LF로 정규화 (Windows autocrlf 환경에서도 일관)
+* text=auto eol=lf
+
+# 바이너리 (정규화/diff 금지)
+*.pdf binary
+*.ifc binary
+*.dxf binary
+*.db  binary
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.gif binary
