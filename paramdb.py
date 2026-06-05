@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """
-paramdb.py — 공통 코어
+paramdb.py — 파라메트릭 DB 공통 코어
 
-엘리베이터 CAD → 파라메트릭 DB 파이프라인의 표준 지식·유틸리티를 한곳에 모은다.
-- 스키마 초기화(schema.sql 실행) + 표준 시드(parameter_def · constant · dependency_edge)
-- 표준 파라미터 사전 / 동의어 매핑(map_canonical)
-- 단위 정규화(normalize_value: 길이 → mm)
-- EN 81 제약 검증(validate_en81)
-- 파일 해시 등 보조 함수
-
-원칙: "그림(B-rep)"은 저장하지 않는다. 측정값(parameter)은 불변, 솔버 결과는 분리.
-다른 모듈(extract_ifc.py 등)은 이 모듈의 인터페이스에만 의존한다.
+IFC/DXF 추출기 + 전파 솔버가 공유:
+  - 스키마 초기화 + 표준 사전/의존 그래프/표준 상수 시드
+  - 의미 매핑(원본 속성명 → 표준 파라미터)
+  - 단위 정규화(길이 → mm)
+  - EN 81 제약 검증 (순수 함수 check_en81 + DB 래퍼 validate_en81)
 """
 from __future__ import annotations
 
@@ -19,205 +15,172 @@ import re
 import sqlite3
 from pathlib import Path
 
-# 타입 추정/매핑 신뢰도가 이 값 미만이면 review_queue 로 보낸다.
-CONFIDENCE_THRESHOLD: float = 0.5
+SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+CONFIDENCE_THRESHOLD = 0.7
 
-SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+CANONICAL_MAP: dict[str, str] = {
+    "carwidth": "car_width", "cw": "car_width",
+    "cardepth": "car_depth", "cd": "car_depth",
+    "carheight": "car_height", "ch": "car_height",
+    "shaftwidth": "shaft_width", "hoistwaywidth": "shaft_width", "sw": "shaft_width",
+    "shaftdepth": "shaft_depth", "hoistwaydepth": "shaft_depth", "sd": "shaft_depth",
+    "doorwidth": "door_width", "clearopeningwidth": "door_width", "dw": "door_width",
+    "doorheight": "door_height", "clearopeningheight": "door_height", "dh": "door_height",
+    "capacity": "rated_load", "ratedload": "rated_load", "load": "rated_load",
+    "speed": "rated_speed", "ratedspeed": "rated_speed",
+    "travel": "travel_height", "overhead": "overhead", "oh": "overhead",
+    "pit": "pit_depth", "pitdepth": "pit_depth",
+    # 제조사별 표기 별칭 (낯선 스키마 온보딩으로 확장)
+    "cabinclearwidth": "car_width", "cabincleardepth": "car_depth", "cabinclearheight": "car_height",
+    "wellplanwidth": "shaft_width", "wellplandepth": "shaft_depth",
+    "entranceclearwidth": "door_width", "entranceclearheight": "door_height",
+    # IFC4.3 표준 Pset_TransportElementElevator 속성명
+    "clearwidth": "car_width", "cleardepth": "car_depth", "clearheight": "car_height",
+}
 
+LENGTH_PARAMS: set[str] = {
+    "car_width", "car_depth", "car_height", "shaft_width", "shaft_depth",
+    "door_width", "door_height", "pit_depth", "overhead", "travel_height",
+}
+UNIT_OF: dict[str, str] = {"rated_load": "kg", "rated_speed": "mps"}
 
-# ──────────────────────────────────────────────────────────────────────────
-# 표준 파라미터 사전 (온톨로지)
-#   canonical : (설명, 단위, EN81 메모, [동의어...])
-#   단위가 "mm" 인 항목만 길이 정규화(scale_to_mm) 대상.
-# ──────────────────────────────────────────────────────────────────────────
-PARAM_DEFS: list[tuple[str, str, str, str, list[str]]] = [
-    ("car_width",   "카 내부 폭",        "mm",  "door_width 이상", ["CarWidth", "ClearWidth", "CabWidth", "CarInternalWidth"]),
-    ("car_depth",   "카 내부 깊이",      "mm",  "",                ["CarDepth", "ClearDepth", "CabDepth", "CarInternalDepth"]),
-    ("car_height",  "카 내부 높이",      "mm",  "door_height 이상",["CarHeight", "ClearHeight", "CabHeight", "CarInternalHeight"]),
-    ("door_width",  "도어 유효 폭",      "mm",  "car_width 이하",  ["DoorWidth", "DoorClearWidth", "ClearOpeningWidth", "EntranceWidth"]),
-    ("door_height", "도어 유효 높이",    "mm",  "car_height 이하", ["DoorHeight", "DoorClearHeight", "ClearOpeningHeight", "EntranceHeight"]),
-    ("shaft_width", "승강로 폭",         "mm",  "car_width 이상",  ["ShaftWidth", "HoistwayWidth", "WellWidth"]),
-    ("shaft_depth", "승강로 깊이",       "mm",  "car_depth 이상",  ["ShaftDepth", "HoistwayDepth", "WellDepth"]),
-    ("shaft_area",  "승강로 단면적",     "mm2", "shaft_width*shaft_depth", ["ShaftArea", "WellArea"]),
-    ("capacity",    "정격 적재량",       "kg",  "",                ["Capacity", "LoadCapacity", "RatedLoad", "Load"]),
-    ("speed",       "정격 속도",         "mps", "",                ["Speed", "RatedSpeed", "NominalSpeed"]),
+CANONICAL_TO_TYPE: dict[str, str] = {
+    "car_width": "car", "car_depth": "car", "car_height": "car",
+    "rated_load": "car", "rated_speed": "car",
+    "door_width": "door", "door_height": "door",
+    "shaft_width": "shaft", "shaft_depth": "shaft", "shaft_area": "shaft",
+}
+
+PARAM_DEFS: list[tuple[str, str, str, str, str]] = [
+    ("car_width", "카 내부 폭", "mm", "shaft_width 보다 작아야 함", "CW,Car Width,캐빈폭"),
+    ("car_depth", "카 내부 깊이", "mm", "shaft_depth 보다 작아야 함", "CD,Car Depth"),
+    ("car_height", "카 내부 높이", "mm", ">= 2000 권장", "CH,Car Height"),
+    ("shaft_width", "승강로 폭", "mm", "car_width + 2*clearance + rail_space", "Hoistway Width,승강로폭"),
+    ("shaft_depth", "승강로 깊이", "mm", "car_depth + clearance", "Hoistway Depth"),
+    ("door_width", "도어 유효 폭", "mm", "<= car_width", "Clear Opening Width,도어폭"),
+    ("door_height", "도어 유효 높이", "mm", ">= 2000", "Clear Opening Height"),
+    ("rated_load", "정원/적재하중", "kg", "> 0", "Capacity,Load,정원"),
+    ("rated_speed", "정격 속도", "mps", "> 0", "Speed,속도"),
+    ("pit_depth", "피트 깊이", "mm", "> 0", "Pit"),
+    ("overhead", "오버헤드", "mm", "표준 최소치 이상", "OH"),
 ]
 
-# canonical → 표준 단위
-UNIT_OF: dict[str, str] = {canon: unit for canon, _desc, unit, _en, _syn in PARAM_DEFS}
-
-
-def _norm_key(name: str) -> str:
-    """매핑 키 정규화: 소문자 + 영숫자만 (CarWidth/car_width/CAR WIDTH 동일 취급)."""
-    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
-
-
-# 동의어(+canonical 자기 자신) → canonical
-CANONICAL_MAP: dict[str, str] = {}
-for _canon, _desc, _unit, _en, _syns in PARAM_DEFS:
-    for _s in [_canon, *_syns]:
-        CANONICAL_MAP[_norm_key(_s)] = _canon
-
-
-# 표준 상수 (의존식 입력). README 검증 수치와 정합:
-#   shaft_width = car_width + 500  → 1100+500=1600
-#   shaft_depth = car_depth + 400  → 1400+400=1800
-CONSTANTS: list[tuple[str, float, str, str]] = [
-    ("rail_space_w", 500.0, "mm", "카 양측 가이드레일+클리어런스 합 폭"),
-    ("rail_space_d", 400.0, "mm", "카 전후 클리어런스 합 깊이"),
+# 의존 그래프 시드. shaft_area 는 두 파생값에 의존 → 위상 정렬(체인) 시연.
+DEPENDENCY_SEEDS: list[tuple[str, str, str, str, float]] = [
+    ("shaft_width", "car_width + 2*side_clearance + rail_space",
+     "car_width,side_clearance,rail_space", "standard", 0.9),
+    ("shaft_depth", "car_depth + front_clearance + rear_clearance",
+     "car_depth,front_clearance,rear_clearance", "standard", 0.9),
+    ("shaft_area", "shaft_width * shaft_depth",
+     "shaft_width,shaft_depth", "standard", 0.8),
 ]
 
-# 표준 의존 그래프 (origin='standard'). 비선형(area)은 회귀로 못 찾으므로 여기서 시드.
-STANDARD_EDGES: list[tuple[str, str, str]] = [
-    ("shaft_width", "car_width + rail_space_w", "car_width,rail_space_w"),
-    ("shaft_depth", "car_depth + rail_space_d", "car_depth,rail_space_d"),
-    ("shaft_area",  "shaft_width * shaft_depth", "shaft_width,shaft_depth"),
+# 표준 상수 (mm). shaft_width/shaft_depth 측정값과 일치하도록 보정된 예시값.
+CONSTANT_SEEDS: list[tuple[str, float, str, str]] = [
+    ("side_clearance", 50.0, "mm", "카 측면 클리어런스(편측)"),
+    ("rail_space", 400.0, "mm", "가이드레일 + 균형추 점유"),
+    ("front_clearance", 250.0, "mm", "전면 클리어런스"),
+    ("rear_clearance", 150.0, "mm", "후면 클리어런스"),
 ]
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# 스키마 초기화 + 표준 시드
-# ──────────────────────────────────────────────────────────────────────────
-def init_db(conn: sqlite3.Connection) -> None:
-    """schema.sql 로 테이블 생성 후 표준 사전/상수/의존엣지를 멱등 시드."""
-    if not SCHEMA_PATH.exists():
-        raise FileNotFoundError(f"스키마 파일 없음: {SCHEMA_PATH}")
-    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-
-    cur = conn.cursor()
-    for canon, desc, unit, en81, syns in PARAM_DEFS:
-        cur.execute(
-            "INSERT OR IGNORE INTO parameter_def "
-            "(canonical_name, description, unit, en81_constraint, synonyms) VALUES (?,?,?,?,?)",
-            (canon, desc, unit, en81, ",".join(syns)),
-        )
-    for name, value, unit, note in CONSTANTS:
-        cur.execute(
-            "INSERT OR IGNORE INTO constant (name, value, unit, note) VALUES (?,?,?,?)",
-            (name, value, unit, note),
-        )
-    # dependency_edge 는 자연키가 없으므로 standard 가 없을 때만 시드(중복 방지).
-    have_std = cur.execute(
-        "SELECT COUNT(*) FROM dependency_edge WHERE origin='standard'"
-    ).fetchone()[0]
-    if not have_std:
-        for target, expr, sources in STANDARD_EDGES:
-            cur.execute(
-                "INSERT INTO dependency_edge (target_param, expression, source_params, origin, confidence) "
-                "VALUES (?,?,?,?,?)",
-                (target, expr, sources, "standard", 1.0),
-            )
-    conn.commit()
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# 보조 함수
-# ──────────────────────────────────────────────────────────────────────────
-def file_hash(path: Path | str) -> str:
-    """원본 파일 SHA-256 (중복 도면 식별용)."""
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def to_float(raw_value) -> float | None:
-    """속성값 → float. bool/비수치/None 은 None (FireRating=120.0 은 통과)."""
-    if isinstance(raw_value, bool):
-        return None
-    if isinstance(raw_value, (int, float)):
-        return float(raw_value)
-    if isinstance(raw_value, str):
-        try:
-            return float(raw_value.strip())
-        except ValueError:
-            return None
-    return None
+def normalize_key(raw: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", raw.lower())
 
 
 def map_canonical(raw_name: str) -> str | None:
-    """원본 속성명 → 표준 canonical 이름. 미매핑이면 None."""
-    return CANONICAL_MAP.get(_norm_key(raw_name))
+    return CANONICAL_MAP.get(normalize_key(raw_name))
+
+
+def to_float(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        m = re.search(r"-?\d+(?:\.\d+)?", value)
+        return float(m.group()) if m else None
+    return None
 
 
 def normalize_value(canonical: str | None, value: float,
                     scale_to_mm: float | None) -> tuple[float, str | None]:
-    """
-    측정값 정규화.
-    - 길이(unit=mm) 이고 scale 정보가 있으면 → mm 환산(반올림 1자리).
-    - 비길이(kg/mps) 또는 단위 미상은 원값 유지.
-    반환: (정규화값, 단위)
-    """
-    unit = UNIT_OF.get(canonical) if canonical else None
-    if unit == "mm" and scale_to_mm:
-        return round(value * scale_to_mm, 1), "mm"
-    return value, unit
+    if canonical in LENGTH_PARAMS:
+        if scale_to_mm is not None:
+            return round(value * scale_to_mm, 1), "mm"
+        return value, None
+    if canonical in UNIT_OF:
+        return value, UNIT_OF[canonical]
+    return value, None
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# EN 81 제약 검증
-# ──────────────────────────────────────────────────────────────────────────
-def _drawing_params(conn: sqlite3.Connection, drawing_id: int) -> dict[str, float]:
-    """도면의 canonical 파라미터 값 모음 (동일 canonical 중복 시 마지막 값)."""
-    rows = conn.execute(
-        "SELECT p.canonical_name, p.value "
-        "FROM parameter p JOIN component c ON p.component_id = c.id "
-        "WHERE c.drawing_id = ? AND p.canonical_name IS NOT NULL AND p.value IS NOT NULL",
-        (drawing_id,),
-    ).fetchall()
-    out: dict[str, float] = {}
-    for name, value in rows:
-        out[name] = float(value)
-    return out
+def file_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
-# (규칙명, 심각도, 검사 함수: params → 위반 detail 문자열 or None)
-def _en81_rules() -> list[tuple[str, str, callable]]:
-    def rule_door_not_wider(p):
-        if "door_width" in p and "car_width" in p and p["door_width"] > p["car_width"]:
-            return f"door_width={p['door_width']:.0f} > car_width={p['car_width']:.0f}"
-        return None
+def init_db(conn: sqlite3.Connection) -> None:
+    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    conn.executemany(
+        "INSERT OR IGNORE INTO parameter_def "
+        "(canonical_name, description, unit, en81_constraint, synonyms) VALUES (?,?,?,?,?)",
+        PARAM_DEFS,
+    )
+    conn.executemany(
+        "INSERT OR IGNORE INTO constant (name, value, unit, note) VALUES (?,?,?,?)",
+        CONSTANT_SEEDS,
+    )
+    if conn.execute("SELECT COUNT(*) FROM dependency_edge").fetchone()[0] == 0:
+        conn.executemany(
+            "INSERT INTO dependency_edge (target_param, expression, source_params, origin, confidence) "
+            "VALUES (?,?,?,?,?)",
+            DEPENDENCY_SEEDS,
+        )
+    conn.commit()
 
-    def rule_door_not_taller(p):
-        if "door_height" in p and "car_height" in p and p["door_height"] > p["car_height"]:
-            return f"door_height={p['door_height']:.0f} > car_height={p['car_height']:.0f}"
-        return None
 
-    def rule_shaft_fits_width(p):
-        if "shaft_width" in p and "car_width" in p and p["shaft_width"] < p["car_width"]:
-            return f"shaft_width={p['shaft_width']:.0f} < car_width={p['car_width']:.0f}"
-        return None
+def check_en81(vals: dict[str, float]) -> list[tuple[str, str, str]]:
+    """파라미터 dict 에 대한 EN 81 제약 검사 (순수 함수). 위반 목록 반환."""
+    issues: list[tuple[str, str, str]] = []
 
-    def rule_shaft_fits_depth(p):
-        if "shaft_depth" in p and "car_depth" in p and p["shaft_depth"] < p["car_depth"]:
-            return f"shaft_depth={p['shaft_depth']:.0f} < car_depth={p['car_depth']:.0f}"
-        return None
+    def has(*names: str) -> bool:
+        return all(n in vals and vals[n] is not None for n in names)
 
-    return [
-        ("door_width<=car_width",   "error", rule_door_not_wider),
-        ("door_height<=car_height", "error", rule_door_not_taller),
-        ("shaft_width>=car_width",  "error", rule_shaft_fits_width),
-        ("shaft_depth>=car_depth",  "error", rule_shaft_fits_depth),
-    ]
+    if has("car_width", "shaft_width") and not (vals["car_width"] < vals["shaft_width"]):
+        issues.append(("car_width<shaft_width", "error",
+                       f"car_width({vals['car_width']}) >= shaft_width({vals['shaft_width']})"))
+    if has("car_depth", "shaft_depth") and not (vals["car_depth"] < vals["shaft_depth"]):
+        issues.append(("car_depth<shaft_depth", "error",
+                       f"car_depth({vals['car_depth']}) >= shaft_depth({vals['shaft_depth']})"))
+    if has("door_width", "car_width") and not (vals["door_width"] <= vals["car_width"]):
+        issues.append(("door_width<=car_width", "error",
+                       f"door_width({vals['door_width']}) > car_width({vals['car_width']})"))
+    if has("car_height") and vals["car_height"] < 2000:
+        issues.append(("car_height>=2000", "warn", f"car_height({vals['car_height']}) < 2000"))
+    if has("door_height") and vals["door_height"] < 2000:
+        issues.append(("door_height>=2000", "warn", f"door_height({vals['door_height']}) < 2000"))
+    if has("rated_load") and vals["rated_load"] <= 0:
+        issues.append(("rated_load>0", "error", f"rated_load({vals['rated_load']}) <= 0"))
+    if has("rated_speed") and vals["rated_speed"] <= 0:
+        issues.append(("rated_speed>0", "error", f"rated_speed({vals['rated_speed']}) <= 0"))
+    return issues
 
 
 def validate_en81(conn: sqlite3.Connection, drawing_id: int) -> list[tuple[str, str, str]]:
-    """
-    도면 단위 EN81 제약 검증. 위반을 validation_issue 에 기록하고
-    (rule, severity, detail) 리스트로 반환. (재실행 시 해당 도면 기존 이슈는 갱신)
-    """
-    params = _drawing_params(conn, drawing_id)
-    conn.execute("DELETE FROM validation_issue WHERE drawing_id = ?", (drawing_id,))
-    issues: list[tuple[str, str, str]] = []
-    cur = conn.cursor()
-    for rule, severity, check in _en81_rules():
-        detail = check(params)
-        if detail:
-            cur.execute(
-                "INSERT INTO validation_issue (drawing_id, rule, severity, detail) VALUES (?,?,?,?)",
-                (drawing_id, rule, severity, detail),
-            )
-            issues.append((rule, severity, detail))
+    rows = conn.execute(
+        "SELECT p.canonical_name, p.value FROM parameter p "
+        "JOIN component c ON c.id = p.component_id "
+        "WHERE c.drawing_id = ? AND p.canonical_name IS NOT NULL",
+        (drawing_id,),
+    ).fetchall()
+    vals: dict[str, float] = {}
+    for cn, v in rows:
+        if v is not None and cn not in vals:
+            vals[cn] = v
+    issues = check_en81(vals)
+    for rule, sev, detail in issues:
+        conn.execute(
+            "INSERT INTO validation_issue (drawing_id, rule, severity, detail) VALUES (?,?,?,?)",
+            (drawing_id, rule, sev, detail),
+        )
     conn.commit()
     return issues
