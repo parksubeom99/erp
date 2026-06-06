@@ -17,7 +17,7 @@ echo "== ELEVATOR CAD -> PARAMETRIC DB : ONE-SHOT DEMO =="
 echo "python: $PY"
 
 # Clean previous artifacts for reproducibility.
-rm -f sample.ifc out.db series.db regen.ifc regen.png
+rm -f sample.ifc out.db series.db regen.ifc regen.png catalog.db
 rm -rf series
 
 echo ""
@@ -54,5 +54,12 @@ echo "== STAGE 8: measure extraction quality (coverage / EN81 / review queue) ==
 "$PY" measure.py out.db
 
 echo ""
+echo "== STAGE 9: catalog bootstrap (register drawing 1, then match a 2nd drawing: 0 classifier calls) =="
+"$PY" extract_ifc.py sample.ifc catalog.db
+"$PY" catalog.py register catalog.db --drawing 1
+"$PY" extract_ifc.py sample.ifc catalog.db
+"$PY" catalog.py match catalog.db --drawing 2
+
+echo ""
 echo "== DEMO COMPLETE =="
-echo "artifacts (gitignored): out.db series.db regen.ifc regen.png"
+echo "artifacts (gitignored): out.db series.db regen.ifc regen.png catalog.db"
