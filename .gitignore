@@ -11,6 +11,7 @@ venv/
 *.dxf
 out*.ifc
 regen*.ifc
+/regen.png
 series/
 
 # OS / editor
