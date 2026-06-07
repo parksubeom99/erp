@@ -17,7 +17,7 @@ echo "== ELEVATOR CAD -> PARAMETRIC DB : ONE-SHOT DEMO =="
 echo "python: $PY"
 
 # Clean previous artifacts for reproducibility.
-rm -f sample.ifc out.db series.db regen.ifc regen.png catalog.db
+rm -f sample.ifc out.db series.db regen.ifc regen.png catalog.db sample.dxf out_dxf.db
 rm -rf series
 
 echo ""
@@ -61,5 +61,11 @@ echo "== STAGE 9: catalog bootstrap (register drawing 1, then match a 2nd drawin
 "$PY" catalog.py match catalog.db --drawing 2
 
 echo ""
+echo "== STAGE 10: DXF path - synthesize sample DXF, extract to parametric DB (same story as IFC) =="
+"$PY" make_sample_dxf.py sample.dxf
+"$PY" extract_dxf.py sample.dxf out_dxf.db
+"$PY" measure.py out_dxf.db
+
+echo ""
 echo "== DEMO COMPLETE =="
-echo "artifacts (gitignored): out.db series.db regen.ifc regen.png catalog.db"
+echo "artifacts (gitignored): out.db series.db regen.ifc regen.png catalog.db out_dxf.db"

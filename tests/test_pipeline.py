@@ -14,8 +14,10 @@ import sqlite3
 import pytest
 
 import catalog
+import extract_dxf
 import extract_ifc
 import infer_edges
+import make_sample_dxf
 import make_sample_ifc
 import make_series_ifc
 import paramdb
@@ -51,6 +53,25 @@ def test_extract_coverage_and_review(sample_db):
     assert c["param_total"] == 10
     assert c["param_mapped"] == 9          # standard mapping 9/10 -> coverage 90%
     assert c["review"] == 2                # FireRating unmapped + shaft type conf 0.6 < 0.7
+    assert c["validation_issue"] == 1      # door_width 1200 > car_width 1100
+
+
+@pytest.fixture
+def sample_dxf_db(tmp_path):
+    """Extract the metre-unit sample DXF (EN81 violation planted) into a fresh db."""
+    dxf = tmp_path / "sample.dxf"
+    make_sample_dxf.build(dxf)
+    db = tmp_path / "out_dxf.db"
+    counts = extract_dxf.extract(dxf, db)
+    return db, counts
+
+
+def test_extract_dxf_coverage_and_review(sample_dxf_db):
+    # Same pins as the IFC path -> proves the two extractors are equivalent.
+    _, c = sample_dxf_db
+    assert c["param_total"] == 10
+    assert c["param_mapped"] == 9          # standard mapping 9/10 -> coverage 90%
+    assert c["review"] == 2                # FireRating unmapped + shaft block type conf 0.6 < 0.7
     assert c["validation_issue"] == 1      # door_width 1200 > car_width 1100
 
 
