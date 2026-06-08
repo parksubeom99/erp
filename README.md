@@ -85,6 +85,7 @@
 | 7 | headless 3D 렌더 | `regen.png` (요소 3개) |
 | 8 | 추출 품질 측정 | 커버리지·EN81·검수 큐 집계 + 매핑 누락(raw) 표면화 |
 | 9 | 카탈로그 부트스트랩 | 도면 1 등록 → 도면 2 매칭 **3/3, 비전 호출 0회** |
+| 10 | **DXF 추출 경로** (블록 → 부품, $INSUNITS 단위, DIMENSION 자동연관) | IFC와 **동치 스토리**: 커버리지 90% / EN81 위반 1 / 매핑 90% |
 
 ---
 
@@ -113,7 +114,7 @@
 ### 한 번에 전체 데모
 
 ```bash
-bash run_demo.sh        # STAGE 1~9 (위 스크린샷 그대로 재현)
+bash run_demo.sh        # STAGE 1~10 (위 스크린샷 그대로 재현)
 ```
 
 ### 단계별 직접 실행
@@ -171,7 +172,7 @@ python measure.py new.db --ifc 제조사도면.ifc      # 실제 파일 투입 �
 
 ```
 erp/
-├── run_demo.sh              ← STAGE 1~9 원샷 데모
+├── run_demo.sh              ← STAGE 1~10 원샷 데모
 ├── paramdb.py · schema.sql  ← 코어 + 스키마
 ├── extract_ifc.py · extract_dxf.py
 ├── infer_edges.py · propagate.py · regen_ifc.py · render_ifc.py
