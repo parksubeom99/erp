@@ -1,0 +1,89 @@
+/*
+ * EDIM design tokens — "drafting precision + code-editor clarity."
+ * Light-neutral base, a single teal signature accent. All colors are CSS
+ * variables so dark mode is a variable swap, never hardcoded. (Handoff §5.)
+ */
+:root {
+  /* surfaces */
+  --surface-0: #fbfcfd; /* page */
+  --surface-1: #f1f4f7; /* rails, inspector */
+  --surface-2: #ffffff; /* cards */
+  /* ink */
+  --ink: #1a2230;
+  --ink-muted: #5b6675;
+  --line: #dde3eb;
+  /* signature + status */
+  --accent: #0e7c6b;
+  --accent-contrast: #ffffff;
+  --info: #2563eb;
+  --warn: #b45309;
+
+  /* typography */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body:
+    "Pretendard", "Pretendard Variable", ui-sans-serif, system-ui,
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --fs-28: 28px;
+
+  /* geometry + motion */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --rail-w: 264px;
+  --inspector-w: 300px;
+  --topbar-h: 48px;
+  --motion: 140ms ease;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --surface-0: #0f1620;
+  --surface-1: #161e2a;
+  --surface-2: #1d2735;
+  --ink: #e6ebf2;
+  --ink-muted: #98a3b3;
+  --line: #2a3646;
+  --accent: #2fbfa6;
+  --accent-contrast: #0f1620;
+  --info: #5b9bff;
+  --warn: #e0973b;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: var(--surface-0);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* keyboard focus ring uses the signature accent */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

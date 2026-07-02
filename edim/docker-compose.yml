@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: edim-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: edim
+      POSTGRES_PASSWORD: edim
+      POSTGRES_DB: edim
+    ports:
+      - "5433:5432"
+    volumes:
+      - edim-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edim -d edim"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  edim-pgdata:

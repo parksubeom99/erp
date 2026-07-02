@@ -1,0 +1,26 @@
+{
+  "name": "edim",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --parallel typecheck",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r --parallel lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,css}\"",
+    "dev": "pnpm --filter @edim/web dev",
+    "db:generate": "pnpm --filter @edim/db generate",
+    "db:migrate": "pnpm --filter @edim/db migrate",
+    "db:seed": "pnpm --filter @edim/db seed",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}
