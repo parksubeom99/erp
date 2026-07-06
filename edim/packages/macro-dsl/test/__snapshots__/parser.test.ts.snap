@@ -1,0 +1,132 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden case — blueprint standard formula > produces a stable AST snapshot 1`] = `
+{
+  "body": {
+    "left": {
+      "cond": {
+        "comparator": ">",
+        "literal": {
+          "position": {
+            "col": 11,
+            "line": 1,
+          },
+          "type": "Number",
+          "value": 500,
+        },
+        "position": {
+          "col": 5,
+          "line": 1,
+        },
+        "refs": [
+          {
+            "name": "MC",
+            "position": {
+              "col": 5,
+              "line": 1,
+            },
+            "type": "CodeRef",
+          },
+          {
+            "name": "CC",
+            "position": {
+              "col": 8,
+              "line": 1,
+            },
+            "type": "CodeRef",
+          },
+        ],
+        "type": "Condition",
+      },
+      "otherwise": {
+        "left": {
+          "aux": "Cos2",
+          "col": "E",
+          "position": {
+            "col": 54,
+            "line": 1,
+          },
+          "rowRange": [
+            10,
+            25,
+          ],
+          "tableId": "12",
+          "type": "TableCall",
+        },
+        "op": "+",
+        "position": {
+          "col": 75,
+          "line": 1,
+        },
+        "right": {
+          "cell": "F3",
+          "id": "15",
+          "namespace": "FES",
+          "position": {
+            "col": 76,
+            "line": 1,
+          },
+          "type": "VarCall",
+        },
+        "type": "Binary",
+      },
+      "position": {
+        "col": 2,
+        "line": 1,
+      },
+      "then": {
+        "left": {
+          "aux": "Cos2",
+          "col": "E",
+          "position": {
+            "col": 16,
+            "line": 1,
+          },
+          "rowRange": [
+            10,
+            25,
+          ],
+          "tableId": "12",
+          "type": "TableCall",
+        },
+        "op": "+",
+        "position": {
+          "col": 37,
+          "line": 1,
+        },
+        "right": {
+          "cell": "F3",
+          "id": "15",
+          "namespace": "FES",
+          "position": {
+            "col": 38,
+            "line": 1,
+          },
+          "type": "VarCall",
+        },
+        "type": "Binary",
+      },
+      "type": "If",
+    },
+    "op": "*",
+    "position": {
+      "col": 91,
+      "line": 1,
+    },
+    "right": {
+      "arg": 1,
+      "position": {
+        "col": 92,
+        "line": 1,
+      },
+      "type": "PreC",
+    },
+    "type": "Binary",
+  },
+  "position": {
+    "col": 1,
+    "line": 1,
+  },
+  "type": "Macro",
+}
+`;
