@@ -15,7 +15,8 @@
     "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "rls:test": "dotenv -e ../../.env -- tsx prisma/rls-isolation-test.ts",
-    "hierarchy:test": "dotenv -e ../../.env -- tsx prisma/hierarchy-test.ts"
+    "hierarchy:test": "dotenv -e ../../.env -- tsx prisma/hierarchy-test.ts",
+    "project:test": "dotenv -e ../../.env -- tsx prisma/project-test.ts"
   },
   "dependencies": {
     "@edim/core-ontology": "workspace:*",

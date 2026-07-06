@@ -32,6 +32,15 @@ const text = (path, cookie) =>
   fetch(`${BASE}${path}`, { headers: cookie ? { cookie } : {} }).then((r) => r.text());
 const status = (path, cookie) =>
   fetch(`${BASE}${path}`, { headers: cookie ? { cookie } : {} }).then((r) => r.status);
+const postStatus = (path, body, cookie) =>
+  fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body),
+  }).then((r) => r.status);
+
+// Deterministic seeded project (see prisma/seed.ts IDS).
+const PROJECT_ID = "c0000000-0000-4000-8000-000000000001";
 
 async function main() {
   // unauthenticated redirect --------------------------------------------------
@@ -48,6 +57,12 @@ async function main() {
   check("owner hierarchy API 200", (await status("/api/hierarchy", o.cookie)) === 200);
   check("owner can open finance module (200)", (await status("/api/modules/finance", o.cookie)) === 200);
 
+  // L3 Project: owner sees seeded project + can drive it -----------------------
+  check("owner sees seeded project in tree", oHome.includes("PS-61313-5"));
+  check("owner menu includes Project", oHome.includes("/m/project"));
+  check("owner can change sales stage (200)", (await postStatus(`/api/projects/${PROJECT_ID}/stage`, { stage: "협의" }, o.cookie)) === 200);
+  check("owner can add a task (200)", (await postStatus(`/api/projects/${PROJECT_ID}/tasks`, { title: "smoke task" }, o.cookie)) === 200);
+
   // viewer ------------------------------------------------------------------
   const v = await login("viewer@acme.test");
   check("viewer login sets session", v.status === 200 && !!v.cookie);
@@ -56,6 +71,11 @@ async function main() {
   check("viewer menu keeps Toolbox/Company", vHome.includes("/m/toolbox") && vHome.includes("/m/company"));
   check("viewer BLOCKED from finance route (403)", (await status("/api/modules/finance", v.cookie)) === 403);
   check("viewer allowed on toolbox route (200)", (await status("/api/modules/toolbox", v.cookie)) === 200);
+
+  // L3 Project RBAC: viewer is read-only ---------------------------------------
+  check("viewer sees Project module (read)", vHome.includes("/m/project"));
+  check("viewer BLOCKED from stage change (403)", (await postStatus(`/api/projects/${PROJECT_ID}/stage`, { stage: "협의" }, v.cookie)) === 403);
+  check("viewer BLOCKED from deciding approval (403)", (await postStatus(`/api/project-approvals/${PROJECT_ID}`, { decision: "approved" }, v.cookie)) === 403);
 
   // cross-tenant ------------------------------------------------------------
   const x = await login("owner@acme.test", "globex");

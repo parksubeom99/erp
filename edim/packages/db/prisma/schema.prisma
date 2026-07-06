@@ -26,6 +26,10 @@ model Tenant {
   memberships    Membership[]
   hierarchyNodes HierarchyNode[]
   auditLogs      AuditLog[]
+  projects       Project[]
+  attachments    ProjectAttachment[]
+  tasks          ProjectTask[]
+  approvals      ProjectApproval[]
 
   @@map("tenant")
 }
@@ -36,9 +40,13 @@ model AppUser {
   name      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  memberships  Membership[]
-  createdNodes HierarchyNode[]
-  auditActions AuditLog[]
+  memberships        Membership[]
+  createdNodes       HierarchyNode[]
+  auditActions       AuditLog[]
+  createdProjects    Project[]
+  uploadedFiles      ProjectAttachment[]
+  approvalsRequested ProjectApproval[]   @relation("ApprovalRequester")
+  approvalsToDecide  ProjectApproval[]   @relation("ApprovalApprover")
 
   @@map("app_user")
 }
@@ -91,4 +99,92 @@ model AuditLog {
   actor  AppUser @relation(fields: [actorId], references: [id])
 
   @@map("audit_log")
+}
+
+// --- L3 Phase A: Project Management (handoff §3.1) --------------------------
+// Project is the detail table for a Hierarchy node of kind='project'
+// (Hierarchy = address, table = detail). `hierarchyStable` points at the node's
+// stable_id; it is NOT a code column — project_no is a human-readable number,
+// not an RCCS code (GAP1 stays untouched).
+
+model Project {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  hierarchyStable String   @map("hierarchy_stable") @db.Uuid
+  projectNo       String   @map("project_no")
+  name            String
+  type            String // 'client' | 'internal'
+  clientName      String?  @map("client_name")
+  clientContact   String?  @map("client_contact")
+  itemType        String?  @map("item_type") // free text (e.g. 'AHU'), not a code
+  salesStage      String   @map("sales_stage") // 기술제안|견적|협의|계약|계약변경|종료
+  status          String // 'active' | 'closed'
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String   @map("created_by") @db.Uuid
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creator     AppUser             @relation(fields: [createdBy], references: [id])
+  attachments ProjectAttachment[]
+  tasks       ProjectTask[]
+  approvals   ProjectApproval[]
+
+  @@unique([tenantId, projectNo])
+  @@index([tenantId, hierarchyStable])
+  @@map("project")
+}
+
+model ProjectAttachment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  department  String
+  docType     String   @map("doc_type")
+  name        String
+  description String?
+  fileRef     String   @map("file_ref") // storage path/key; binary upload out of scope
+  uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  uploadedBy  String   @map("uploaded_by") @db.Uuid
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader AppUser @relation(fields: [uploadedBy], references: [id])
+
+  @@index([tenantId, projectId])
+  @@map("project_attachment")
+}
+
+model ProjectTask {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  projectId String    @map("project_id") @db.Uuid
+  title     String
+  state     String // 'todo' | 'done'
+  dueAt     DateTime? @map("due_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId])
+  @@map("project_task")
+}
+
+model ProjectApproval {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  requesterId String    @map("requester_id") @db.Uuid
+  approverId  String?   @map("approver_id") @db.Uuid
+  state       String // 'requested' | 'approved' | 'rejected'
+  note        String?
+  requestedAt DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  decidedAt   DateTime? @map("decided_at") @db.Timestamptz(6)
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester AppUser  @relation("ApprovalRequester", fields: [requesterId], references: [id])
+  approver  AppUser? @relation("ApprovalApprover", fields: [approverId], references: [id])
+
+  @@index([tenantId, projectId])
+  @@map("project_approval")
 }

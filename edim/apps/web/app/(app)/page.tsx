@@ -1,20 +1,39 @@
 import { AppShell, ThemeToggle, CodeChip } from "@edim/ui";
 import { getServerSession } from "@/app/lib/session";
 import { getTreeForSession } from "@/app/lib/hierarchy";
+import { getProjectDetailByStable } from "@/app/lib/project";
 import { modulesForRole } from "@/app/lib/modules";
+import { canEditProject, canDecideApproval } from "@/app/lib/project-perms";
 import { ModuleMenu } from "./module-menu";
 import { HierarchyTree } from "./hierarchy-tree";
 import { SignOutButton } from "./sign-out-button";
+import { ProjectDetail, type ProjectView } from "./project-detail";
 
 /**
- * STEP 4 — the Main Form shell. Left rail shows the live Hierarchy tree (real
- * data via RLS), center is the Overview tab with an L3 placeholder, right is the
- * Inspector skeleton. Top bar carries the (full) module menu — RBAC gating is
- * STEP 5. Main Work Panel content stays a placeholder per the L1-before-L3 rule.
+ * Main Form shell. When a Hierarchy node of kind='project' is selected
+ * (?node=<stable>), its detail renders in the Main Work Panel; otherwise the
+ * Overview placeholder. Everything is server-rendered under the session's RLS.
  */
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ node?: string }>;
+}) {
   const session = await getServerSession();
   const tree = (await getTreeForSession()) ?? [];
+  const { node } = await searchParams;
+  const detail = node ? await getProjectDetailByStable(node) : null;
+
+  const main =
+    detail && session ? (
+      <ProjectDetail
+        p={toView(detail)}
+        canEdit={canEditProject(session.role)}
+        canDecide={canDecideApproval(session.role)}
+      />
+    ) : (
+      <OverviewPanel />
+    );
 
   return (
     <AppShell
@@ -45,12 +64,49 @@ export default async function Home() {
           <SignOutButton />
         </>
       }
-      tree={<HierarchyTree nodes={tree} />}
+      tree={<HierarchyTree nodes={tree} selected={node ?? null} />}
       inspector={<InspectorSkeleton />}
     >
-      <OverviewPanel />
+      {main}
     </AppShell>
   );
+}
+
+function toView(
+  d: Awaited<ReturnType<typeof getProjectDetailByStable>>,
+): ProjectView {
+  const { project, tasks, attachments, approvals } = d!;
+  return {
+    id: project.id,
+    projectNo: project.projectNo,
+    name: project.name,
+    type: project.type,
+    clientName: project.clientName,
+    clientContact: project.clientContact,
+    itemType: project.itemType,
+    salesStage: project.salesStage,
+    status: project.status,
+    tasks: tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      state: t.state,
+      dueAt: t.dueAt ? t.dueAt.toISOString() : null,
+    })),
+    attachments: attachments.map((a) => ({
+      id: a.id,
+      department: a.department,
+      docType: a.docType,
+      name: a.name,
+      description: a.description,
+      uploadedAt: a.uploadedAt.toISOString(),
+    })),
+    approvals: approvals.map((a) => ({
+      id: a.id,
+      state: a.state,
+      note: a.note,
+      requestedAt: a.requestedAt.toISOString(),
+    })),
+  };
 }
 
 function OverviewPanel() {
@@ -67,7 +123,8 @@ function OverviewPanel() {
         overview
       </h1>
       <p style={{ color: "var(--ink-muted)", margin: "0 0 20px" }}>
-        여기에 CPQ / PLM / ERP 워크플로우가 들어옵니다. (L3 — 범위 밖)
+        Hierarchy rail에서 프로젝트 노드를 선택하면 상세가 여기에 표시됩니다.
+        (CPQ / PLM / ERP 워크플로우는 L3)
       </p>
       <div
         style={{
@@ -84,7 +141,7 @@ function OverviewPanel() {
             marginBottom: 8,
           }}
         >
-          code chip (§5.5, sample — real RCCS codes injected in L3)
+          code chip (§5.5, sample — real RCCS codes injected post-GAP1)
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <CodeChip code="EU-55-2123-A1" />

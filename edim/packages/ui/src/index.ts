@@ -9,3 +9,4 @@ export const UI_PACKAGE = "@edim/ui" as const;
 export { AppShell, type AppShellProps } from "./app-shell";
 export { CodeChip, StableIdBadge } from "./code-chip";
 export { ThemeToggle, themeInitScript } from "./theme-toggle";
+export { DataTable, type Column } from "./data-table";

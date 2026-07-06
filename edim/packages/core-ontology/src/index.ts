@@ -42,6 +42,29 @@ export const asUserId = (v: string): UserId => v as UserId;
 export const asStableId = (v: string): StableId => v as StableId;
 export const asRevisionId = (v: string): RevisionId => v as RevisionId;
 
+/** L3 Project vocabulary (handoff §3.1). Ordered stages drive the UI stepper. */
+export const SALES_STAGES = [
+  "기술제안",
+  "견적",
+  "협의",
+  "계약",
+  "계약변경",
+  "종료",
+] as const;
+export type SalesStage = (typeof SALES_STAGES)[number];
+export function isSalesStage(v: string): v is SalesStage {
+  return (SALES_STAGES as readonly string[]).includes(v);
+}
+
+export const PROJECT_TYPES = ["client", "internal"] as const;
+export type ProjectType = (typeof PROJECT_TYPES)[number];
+
+export const TASK_STATES = ["todo", "done"] as const;
+export type TaskState = (typeof TASK_STATES)[number];
+
+export const APPROVAL_STATES = ["requested", "approved", "rejected"] as const;
+export type ApprovalState = (typeof APPROVAL_STATES)[number];
+
 /**
  * A current-revision node as returned by the recursive-CTE tree query — flat,
  * with a computed `depth`. Only the fields the tree UI needs; the full row lives

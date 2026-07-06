@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { getServerSession } from "@/app/lib/session";
 import { getModule, canAccessModule } from "@/app/lib/modules";
+import { listProjectsForSession } from "@/app/lib/project";
 
 /**
- * Module routing stub (STEP 5). Content is a placeholder — real workflows are L3.
- * Guarded server-side: an unpermitted role sees a forbidden notice, never the
- * module content (the /api/modules/[key] route returns the 403 status the test
- * asserts).
+ * Module routing stub (STEP 5). Guarded server-side: an unpermitted role sees a
+ * forbidden notice, never module content. The 'project' module lists the
+ * tenant's projects, each linking into the Main Work Panel detail (?node=).
  */
 export default async function ModulePage({
   params,
@@ -17,6 +17,8 @@ export default async function ModulePage({
   const session = await getServerSession();
   const mod = getModule(key);
   const allowed = !!session && !!mod && canAccessModule(session.role, key);
+  const projects =
+    allowed && key === "project" ? await listProjectsForSession() : null;
 
   return (
     <main style={{ maxWidth: 640, margin: "10vh auto", padding: 24 }}>
@@ -37,9 +39,41 @@ export default async function ModulePage({
           >
             {mod!.label}
           </h1>
-          <p style={{ color: "var(--ink-muted)" }}>
-            여기에 {mod!.label} 워크플로우가 들어옵니다. (L3 — 범위 밖)
-          </p>
+          {key === "project" ? (
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {(projects ?? []).map((p) => (
+                <li
+                  key={p.id}
+                  style={{
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  <Link
+                    href={`/?node=${p.hierarchyStable}`}
+                    style={{ color: "var(--ink)", textDecoration: "none" }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      {p.projectNo}
+                    </span>{" "}
+                    {p.name}
+                  </Link>
+                </li>
+              ))}
+              {(projects ?? []).length === 0 && (
+                <li style={{ color: "var(--ink-muted)" }}>no projects</li>
+              )}
+            </ul>
+          ) : (
+            <p style={{ color: "var(--ink-muted)" }}>
+              여기에 {mod!.label} 워크플로우가 들어옵니다. (L3 — 범위 밖)
+            </p>
+          )}
         </>
       ) : (
         <>

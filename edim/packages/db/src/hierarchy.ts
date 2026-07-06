@@ -5,6 +5,7 @@ import {
 } from "@edim/core-ontology";
 import type { TenantClient } from "./tenant";
 import { requireTenant } from "./tenant";
+import { writeAudit } from "./audit";
 
 /**
  * Hierarchy domain operations. Every function runs inside a withTenant()
@@ -20,25 +21,7 @@ import { requireTenant } from "./tenant";
  *    no longer be reached through it) drops out of the current tree.
  */
 
-type AuditAction = "create" | "update" | "delete" | "move";
-
-async function writeAudit(
-  tx: TenantClient,
-  actorId: string,
-  action: AuditAction,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-): Promise<void> {
-  await tx.$executeRaw`
-    INSERT INTO audit_log (tenant_id, actor_id, action, entity, entity_id, before, after)
-    VALUES (
-      current_setting('app.current_tenant')::uuid,
-      ${actorId}::uuid, ${action}, 'hierarchy_node', ${entityId},
-      ${before === null || before === undefined ? null : JSON.stringify(before)}::jsonb,
-      ${after === null || after === undefined ? null : JSON.stringify(after)}::jsonb
-    )`;
-}
+const ENTITY = "hierarchy_node";
 
 /** Recursive CTE (handoff §4.5). RLS supplies the tenant filter. */
 export async function getTreeRows(
@@ -101,7 +84,7 @@ export async function createNode(
       createdBy: input.createdBy,
     },
   });
-  await writeAudit(tx, input.createdBy, "create", row.stableId, null, {
+  await writeAudit(tx, input.createdBy, "create", ENTITY, row.stableId, null, {
     label: input.label,
     kind: input.kind,
     parentStable: input.parentStable,
@@ -142,6 +125,7 @@ export async function renameNode(
     tx,
     actorId,
     "update",
+    ENTITY,
     stableId,
     { label: current.label },
     { label: newLabel },
@@ -212,6 +196,7 @@ export async function moveNode(
     tx,
     actorId,
     "move",
+    ENTITY,
     stableId,
     { parentStable: oldParent, position: current.position },
     { parentStable: newParentStable ?? null, position: at },
@@ -238,6 +223,7 @@ export async function softDeleteNode(
     tx,
     actorId,
     "delete",
+    ENTITY,
     stableId,
     { label: current.label, parentStable: current.parentStable },
     null,
