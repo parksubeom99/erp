@@ -29,6 +29,9 @@ importers:
       '@edim/hierarchy-address':
         specifier: workspace:*
         version: link:../../packages/hierarchy-address
+      '@edim/macro-verify':
+        specifier: workspace:*
+        version: link:../../packages/macro-verify
       '@edim/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -135,6 +138,25 @@ importers:
       '@edim/core-ontology':
         specifier: workspace:*
         version: link:../core-ontology
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.6(@types/node@22.20.0)(jiti@2.7.0)(tsx@4.22.4)
+
+  packages/macro-verify:
+    dependencies:
+      '@edim/core-ontology':
+        specifier: workspace:*
+        version: link:../core-ontology
+      '@edim/hierarchy-address':
+        specifier: workspace:*
+        version: link:../hierarchy-address
+      '@edim/macro-dsl':
+        specifier: workspace:*
+        version: link:../macro-dsl
     devDependencies:
       typescript:
         specifier: ^5.7.3

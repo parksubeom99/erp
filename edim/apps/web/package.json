@@ -15,6 +15,7 @@
     "@edim/core-ontology": "workspace:*",
     "@edim/db": "workspace:*",
     "@edim/hierarchy-address": "workspace:*",
+    "@edim/macro-verify": "workspace:*",
     "@edim/ui": "workspace:*",
     "dotenv": "^16.4.7",
     "next": "^15.1.4",
