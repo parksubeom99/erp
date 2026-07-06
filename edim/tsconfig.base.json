@@ -20,6 +20,7 @@
       "@edim/macro-dsl": ["packages/macro-dsl/src/index.ts"],
       "@edim/macro-verify": ["packages/macro-verify/src/index.ts"],
       "@edim/macro-compile": ["packages/macro-compile/src/index.ts"],
+      "@edim/macro-registry": ["packages/macro-registry/src/index.ts"],
       "@edim/hierarchy-address": ["packages/hierarchy-address/src/index.ts"],
       "@edim/db": ["packages/db/src/index.ts"],
       "@edim/auth": ["packages/auth/src/index.ts"],

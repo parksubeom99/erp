@@ -23,9 +23,10 @@ model Tenant {
   name      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  memberships    Membership[]
-  hierarchyNodes HierarchyNode[]
-  auditLogs      AuditLog[]
+  memberships     Membership[]
+  hierarchyNodes  HierarchyNode[]
+  auditLogs       AuditLog[]
+  macroRegistries MacroRegistry[]
 
   @@map("tenant")
 }
@@ -36,9 +37,11 @@ model AppUser {
   name      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  memberships  Membership[]
-  createdNodes HierarchyNode[]
-  auditActions AuditLog[]
+  memberships    Membership[]
+  createdNodes   HierarchyNode[]
+  auditActions   AuditLog[]
+  macrosCreated  MacroRegistry[] @relation("MacroCreator")
+  macrosApproved MacroRegistry[] @relation("MacroApprover")
 
   @@map("app_user")
 }
@@ -91,4 +94,30 @@ model AuditLog {
   actor  AppUser @relation(fields: [actorId], references: [id])
 
   @@map("audit_log")
+}
+
+// STEP 5 Registry: approved-macro store (A7). One active `approved` macro per
+// node (stable_id) + revision history; a new approval supersedes the prior one.
+// `stable_id` is a SOFT reference to hierarchy_node identity — that table's PK
+// is composite (stable_id + revision_id) so a plain FK is not expressible; RLS
+// guarantees same-tenant. Mirrors HierarchyNode.parentStable.
+model MacroRegistry {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  stableId           String    @map("stable_id") @db.Uuid
+  dsl                String
+  status             String    @default("draft")
+  revision           Int       @default(1)
+  verifiedAtApproval Boolean   @default(false) @map("verified_at_approval")
+  createdBy          String    @map("created_by") @db.Uuid
+  approvedBy         String?   @map("approved_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  approvedAt         DateTime? @map("approved_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creator  AppUser  @relation("MacroCreator", fields: [createdBy], references: [id])
+  approver AppUser? @relation("MacroApprover", fields: [approvedBy], references: [id])
+
+  @@index([tenantId, stableId, status])
+  @@map("macro_registry")
 }

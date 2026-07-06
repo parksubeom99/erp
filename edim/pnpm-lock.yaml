@@ -32,6 +32,9 @@ importers:
       '@edim/macro-compile':
         specifier: workspace:*
         version: link:../../packages/macro-compile
+      '@edim/macro-registry':
+        specifier: workspace:*
+        version: link:../../packages/macro-registry
       '@edim/macro-verify':
         specifier: workspace:*
         version: link:../../packages/macro-verify
@@ -156,6 +159,19 @@ importers:
         version: 3.2.6(@types/node@22.20.0)(jiti@2.7.0)(tsx@4.22.4)
 
   packages/macro-dsl:
+    dependencies:
+      '@edim/core-ontology':
+        specifier: workspace:*
+        version: link:../core-ontology
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.6(@types/node@22.20.0)(jiti@2.7.0)(tsx@4.22.4)
+
+  packages/macro-registry:
     dependencies:
       '@edim/core-ontology':
         specifier: workspace:*

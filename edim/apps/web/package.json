@@ -17,6 +17,7 @@
     "@edim/hierarchy-address": "workspace:*",
     "@edim/macro-verify": "workspace:*",
     "@edim/macro-compile": "workspace:*",
+    "@edim/macro-registry": "workspace:*",
     "@edim/ui": "workspace:*",
     "dotenv": "^16.4.7",
     "next": "^15.1.4",

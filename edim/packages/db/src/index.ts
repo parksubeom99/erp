@@ -22,3 +22,12 @@ export {
   softDeleteNode,
 } from "./hierarchy";
 export type { CreateNodeInput } from "./hierarchy";
+export {
+  createDraft,
+  approve,
+  reject,
+  getMacro,
+  listForNode,
+  getApproved,
+} from "./macro";
+export type { MacroDraftInput, MacroApproveInput, MacroRejectInput } from "./macro";
