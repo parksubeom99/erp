@@ -65,8 +65,9 @@ pnpm --filter @edim/web build         # STEP 0 / STEP 4
 pnpm --filter @edim/db rls:test       # STEP 1 — RLS tenant isolation
 pnpm --filter @edim/auth test         # STEP 2 — auth + tenant context
 pnpm --filter @edim/db hierarchy:test # STEP 3 — tree CRUD + revision + audit
+pnpm --filter @edim/db project:test   # L3 A0/A1 — project RLS + domain + audit
 
-# STEP 5/6 E2E (needs the app running: pnpm dev, DB seeded):
+# STEP 5/6 + L3 A5 E2E (needs the app running: pnpm dev, DB seeded):
 BASE_URL=http://localhost:3000 pnpm smoke
 ```
 
@@ -90,10 +91,20 @@ guarded server-side — `GET /api/modules/<key>` returns **403** for a role that
 lacks access (e.g. viewer → `finance`), so client-side hiding is never the only
 defense. Role→module mapping lives in `apps/web/app/lib/modules.ts`.
 
-## Next (out of scope here — L3)
+## L3 — Project Management (Phase A, complete)
 
-This is the **L1 + L2 skeleton**. The next ccmd, after the RCCS code grammar
-(GAP1) is fixed, binds codes onto the Hierarchy — the `hierarchy_node` table's
-stable_id/revision_id split and the "code chip" component are already staged for
-it. Business workflows (CPQ selection, BOM expansion, drawings, costing) fill the
-Main Work Panel placeholder in L3.
+The first L3 module. A **Project** is the detail table for a Hierarchy node of
+`kind='project'` (address = node, detail = table), linked by `hierarchy_stable`.
+`project_no` is a human number, **not** an RCCS code (GAP1 untouched). Clicking a
+project node in the rail opens its detail in the Main Work Panel: header +
+sales-stage stepper + tabs (개요/자료/일정/승인). RBAC: owner/engineer/sales edit,
+owner/engineer decide approvals, viewer read-only — enforced in the
+`/api/projects/*` and `/api/project-*` route handlers. Domain in
+`packages/db/src/project.ts`.
+
+## Next (out of scope until GAP1)
+
+Phase B (calc/doc engine skeleton) is the next chunk. After the RCCS code grammar
+(GAP1) is fixed, codes bind onto the Hierarchy and Project — the stable_id split,
+the "code chip", and `hierarchy_stable` are staged for it. BOM / CPQ / integrated
+outputs / ERP remain deferred.

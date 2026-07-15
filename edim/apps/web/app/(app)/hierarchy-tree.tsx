@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import type { HierarchyTreeNode } from "@edim/core-ontology";
 import { StableIdBadge } from "@edim/ui";
 
@@ -26,16 +27,33 @@ const row: CSSProperties = {
   fontSize: "var(--fs-13)",
 };
 
-function TreeItem({ node }: { node: HierarchyTreeNode }) {
+function TreeItem({
+  node,
+  selected,
+}: {
+  node: HierarchyTreeNode;
+  selected: string | null;
+}) {
   const [open, setOpen] = useState(true);
+  const router = useRouter();
   const hasChildren = node.children.length > 0;
+  const isProject = node.kind === "project";
+  const isSelected = selected === node.stableId;
 
   return (
     <li>
       <button
         type="button"
-        style={row}
-        onClick={() => hasChildren && setOpen(!open)}
+        style={{
+          ...row,
+          background: isSelected
+            ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+            : "transparent",
+        }}
+        onClick={() => {
+          if (isProject) router.push(`/?node=${node.stableId}`);
+          else if (hasChildren) setOpen(!open);
+        }}
         aria-expanded={hasChildren ? open : undefined}
       >
         <span
@@ -83,7 +101,7 @@ function TreeItem({ node }: { node: HierarchyTreeNode }) {
           }}
         >
           {node.children.map((c) => (
-            <TreeItem key={c.stableId} node={c} />
+            <TreeItem key={c.stableId} node={c} selected={selected} />
           ))}
         </ul>
       )}
@@ -91,7 +109,13 @@ function TreeItem({ node }: { node: HierarchyTreeNode }) {
   );
 }
 
-export function HierarchyTree({ nodes }: { nodes: HierarchyTreeNode[] }) {
+export function HierarchyTree({
+  nodes,
+  selected = null,
+}: {
+  nodes: HierarchyTreeNode[];
+  selected?: string | null;
+}) {
   if (nodes.length === 0) {
     return (
       <p
@@ -108,7 +132,7 @@ export function HierarchyTree({ nodes }: { nodes: HierarchyTreeNode[] }) {
   return (
     <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {nodes.map((n) => (
-        <TreeItem key={n.stableId} node={n} />
+        <TreeItem key={n.stableId} node={n} selected={selected} />
       ))}
     </ul>
   );

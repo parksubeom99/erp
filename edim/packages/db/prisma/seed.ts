@@ -24,6 +24,9 @@ export const IDS = {
   a_root: "a0000000-0000-4000-8000-000000000001",
   a_mod: "a0000000-0000-4000-8000-000000000002",
   a_item: "a0000000-0000-4000-8000-000000000003",
+  a_proj: "a0000000-0000-4000-8000-000000000004",
+  // project detail (tenant A)
+  projectA: "c0000000-0000-4000-8000-000000000001",
   // hierarchy (tenant B)
   b_root: "b0000000-0000-4000-8000-000000000001",
   b_mod: "b0000000-0000-4000-8000-000000000002",
@@ -112,6 +115,15 @@ export async function seedAll(): Promise<void> {
       position: 0,
       createdBy: IDS.ownerA,
     },
+    {
+      stableId: IDS.a_proj,
+      tenantId: IDS.tenantA,
+      parentStable: IDS.a_root,
+      kind: "project",
+      label: "PS-61313-5 Micron",
+      position: 1,
+      createdBy: IDS.ownerA,
+    },
     // tenant B: 3-level tree
     {
       stableId: IDS.b_root,
@@ -145,7 +157,29 @@ export async function seedAll(): Promise<void> {
     await adminPrisma.hierarchyNode.create({ data: n });
   }
 
-  console.log("Seed complete: 2 tenants, 3 users, 3 memberships, 6 nodes.");
+  // Project detail (rebuilt each run; cascades to task/attachment/approval) ----
+  await adminPrisma.project.deleteMany({
+    where: { tenantId: { in: [IDS.tenantA, IDS.tenantB] } },
+  });
+  await adminPrisma.project.create({
+    data: {
+      id: IDS.projectA,
+      tenantId: IDS.tenantA,
+      hierarchyStable: IDS.a_proj,
+      projectNo: "PS-61313-5",
+      name: "Micron FAB AHU",
+      type: "client",
+      clientName: "Micron",
+      itemType: "AHU",
+      salesStage: "견적",
+      status: "active",
+      createdBy: IDS.ownerA,
+    },
+  });
+
+  console.log(
+    "Seed complete: 2 tenants, 3 users, 3 memberships, 7 nodes, 1 project.",
+  );
 }
 
 // Self-execute only when run directly (not when imported for IDS/seedAll).

@@ -15,6 +15,11 @@ const ALL: readonly Role[] = ["owner", "engineer", "cad", "sales", "viewer"];
 
 export const MODULES: ModuleDef[] = [
   { key: "toolbox", label: "EDIM Toolbox", roles: ALL },
+  {
+    key: "project",
+    label: "Project",
+    roles: ["owner", "engineer", "sales", "viewer"],
+  },
   { key: "cpq", label: "CPQ", roles: ["owner", "engineer", "sales"] },
   { key: "plm", label: "PLM", roles: ["owner", "engineer", "cad"] },
   { key: "sales", label: "Sales", roles: ["owner", "sales"] },
